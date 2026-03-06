@@ -56,7 +56,7 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
                         mesh_box.label(text="Warning: Mesh data was duplicated.", icon='ERROR')
                 else:
                     mesh_box.label(text="Mesh is not uploaded yet.", icon='UNLINKED')
-                    mesh_box.operator("roblox.upload_meshpart", text="Upload MeshPart", icon='CLOUDGC')
+                    mesh_box.operator("roblox.upload_meshpart", text="Upload MeshPart", icon='EXPORT')
                     
                     # Dropdown to assign an existing mesh
                     mesh_box.prop(obj.roblox_props, "existing_mesh_selector", text="")

@@ -12,28 +12,36 @@ def build_part_node(obj, accumulated_matrix, depsgraph):
     rbx_type = props.rbx_type if props else "Part"
     mesh_name = obj.data.name
 
-    # If the user selected MeshPart AND the mesh has been uploaded
+    # --- MESHPART (PACKAGE) LOGIC ---
     if rbx_type == "MeshPart" and mesh_name.startswith("rblx_id_"):
-        # Extract the ID. This safely handles "rblx_id_12345.001" by stripping the .001
         asset_id = mesh_name.split("_")[2].split(".")[0]
         
+        # Calculate a uniform scale (Roblox Models scale uniformly via Model.Scale)
+        _, _, world_scale = accumulated_matrix.decompose()
+        uniform_scale = (world_scale.x + world_scale.y + world_scale.z) / 3.0
+        
         node = {
-            "$className": "MeshPart",
+            "$className": "Model",
             "$id": obj.name,
+            
+            # MAGIC FIX: Tells Rojo to STOP deleting the mesh when the package downloads!
+            "$ignoreUnknownInstances": True, 
+            
             "$properties": {
-                "MeshId": f"rbxassetid://{asset_id}",
-                "Size": size,
-                "CFrame": cframe,
-                "Color": mat_data["Color"],
-                "Transparency": mat_data["Transparency"],
-                "Reflectance": mat_data["Reflectance"],
-                "CastShadow": mat_data["CastShadow"],
-                "Material": mat_data["Material"],
-                "Anchored": True,
+                "WorldPivot": cframe,
+                "Scale": round(uniform_scale, 3)
+            },
+            "PackageLink": {
+                "$className": "PackageLink",
+                "$properties": {
+                    "PackageId": f"rbxassetid://{asset_id}",
+                    "AutoUpdate": True
+                }
             }
         }
+        
+    # --- PRIMITIVE FALLBACK LOGIC ---
     else:
-        # Fallback to standard Part logic
         node = {
             "$className": rbx_type if rbx_type != "MeshPart" else "Part",
             "$id": obj.name,
@@ -52,6 +60,7 @@ def build_part_node(obj, accumulated_matrix, depsgraph):
             node["$properties"]["Shape"] = props.rbx_shape
             
     return node
+
 def process_object_tree(obj, parent_matrix, depsgraph):
     """
     The recursive walker.
