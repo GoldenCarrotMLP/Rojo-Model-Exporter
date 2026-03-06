@@ -49,6 +49,11 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
                 box.prop(obj.active_material.roblox_props, "material_type", text="Material")
                 box.operator("object.sync_roblox_shader", text="Sync Viewport Shader", icon='SHADING_RENDERED')
                 box.label(text="Edit Color/Alpha in Material Tab", icon='INFO')
+
+                box.operator("roblox.add_texture_node", text="Add Roblox Texture", icon='TEXTURE')
+            
+                box.label(text="Edit Textures in Shader Editor", icon='INFO')
+
             else:
                 layout.label(text="No Material assigned!", icon='ERROR')
 

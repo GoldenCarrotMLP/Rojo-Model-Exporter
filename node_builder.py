@@ -1,7 +1,7 @@
 import bpy
 import mathutils
 from .math_utils import get_roblox_transform
-from .material_utils import get_material_data
+from .material_utils import get_material_data, get_texture_data # Added get_texture_data
 from .node_components import get_roblox_class
 
 def build_part_node(obj, accumulated_matrix, depsgraph):
@@ -30,6 +30,15 @@ def build_part_node(obj, accumulated_matrix, depsgraph):
     if props and props.rbx_type == "Part":
         node["$properties"]["Shape"] = props.rbx_shape
         
+    # --- NEW: ADD TEXTURE CHILDREN ---
+    if obj.active_material:
+        textures = get_texture_data(obj.active_material)
+        for i, tex_dict in enumerate(textures):
+            # We generate a unique name for the texture instance
+            # Roblox doesn't require a specific name, but JSON keys must be unique.
+            tex_name = f"Texture_{tex_dict['$properties']['Face']}_{i}"
+            node[tex_name] = tex_dict
+            
     return node
 
 def process_object_tree(obj, parent_matrix, depsgraph):
@@ -79,9 +88,7 @@ def process_object_tree(obj, parent_matrix, depsgraph):
         target_col = obj.instance_collection
         
         for item in target_col.objects:
-            if item.parent is None: # Only process roots of the instanced collection
-                # We use item.matrix_world here because Collection Items 
-                # are relative to the Collection's internal 0,0,0
+            if item.parent is None: 
                 sub_results = process_object_tree(item, current_matrix, depsgraph)
                 nodes[obj.name].update(sub_results)
 

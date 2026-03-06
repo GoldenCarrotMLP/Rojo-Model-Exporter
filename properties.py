@@ -58,6 +58,19 @@ class RobloxSceneProperties(bpy.types.PropertyGroup):
         subtype='FILE_PATH', # Shows the file picker folder icon
         default="//map.project.json"
     )
+class RobloxMaterialProperties(bpy.types.PropertyGroup):
+    material_type: bpy.props.EnumProperty(
+        name="Roblox Material",
+        items=[('Plastic', "Plastic", ""), ('SmoothPlastic', "Smooth Plastic", ""), ('Neon', "Neon", "")],
+        default='Plastic'
+    )
+    
+    # This ID will be used by any RojoTexture node in this material
+    texture_asset_id: bpy.props.StringProperty(
+        name="Asset ID",
+        description="Roblox Texture ID (e.g. 123456)",
+        default=""
+    )
 
 def register():
     bpy.utils.register_class(RobloxMaterialProperties)
