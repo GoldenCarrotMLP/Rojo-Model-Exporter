@@ -1,5 +1,9 @@
 import mathutils
 
+# Conversion factor: 1 Stud = 0.28 Meters 
+# To convert from Blender Meters to Roblox Studs, we multiply by (1 / 0.28)
+METERS_TO_STUDS = 1.0 / 0.5
+
 def get_roblox_transform(obj, accumulated_matrix, depsgraph):
     """
     obj: The original Blender object (to read data/modifiers).
@@ -12,12 +16,12 @@ def get_roblox_transform(obj, accumulated_matrix, depsgraph):
     
     if not mesh or not mesh.vertices:
         if mesh: obj_eval.to_mesh_clear()
-        return [1, 1, 1], [0,0,0, 1,0,0, 0,1,0, 0,0,1]
+        return [1, 1, 1],[0,0,0, 1,0,0, 0,1,0, 0,0,1]
 
     # 2. Calculate Local Bounding Box Center & Dimensions
     # Note: We do this manually because obj.dimensions includes object scale,
     # but we want the raw mesh size, then we apply the matrix scale later.
-    verts = [v.co for v in mesh.vertices]
+    verts =[v.co for v in mesh.vertices]
     obj_eval.to_mesh_clear()
 
     min_x = min(v.x for v in verts)
@@ -46,22 +50,24 @@ def get_roblox_transform(obj, accumulated_matrix, depsgraph):
     _, rot_quat, world_scale = accumulated_matrix.decompose()
     rot = rot_quat.to_matrix()
 
-    # Roblox Size = RawMeshSize * AccumulatedScale
+    # Roblox Size = RawMeshSize * AccumulatedScale * ConversionFactor
     # Swapping Y/Z for Roblox
-    sx = raw_size.x * world_scale.x
-    sy = raw_size.z * world_scale.z 
-    sz = raw_size.y * world_scale.y
+    sx = raw_size.x * world_scale.x * METERS_TO_STUDS
+    sy = raw_size.z * world_scale.z * METERS_TO_STUDS
+    sz = raw_size.y * world_scale.y * METERS_TO_STUDS
 
-    # Roblox Position (Y-Up)
-    rx, ry, rz = world_center.x, world_center.z, -world_center.y
+    # Roblox Position (Y-Up) * ConversionFactor
+    rx = world_center.x * METERS_TO_STUDS
+    ry = world_center.z * METERS_TO_STUDS
+    rz = -world_center.y * METERS_TO_STUDS
 
     # Roblox Rotation Matrix
     r00, r01, r02 = rot[0][0], rot[0][2], -rot[0][1]
     r10, r11, r12 = rot[2][0], rot[2][2], -rot[2][1]
     r20, r21, r22 = -rot[1][0], -rot[1][2], rot[1][1]
 
-    size = [round(sx, 3), round(sy, 3), round(sz, 3)]
-    cframe = [
+    size =[round(sx, 3), round(sy, 3), round(sz, 3)]
+    cframe =[
         round(rx, 3), round(ry, 3), round(rz, 3),
         round(r00, 4), round(r01, 4), round(r02, 4),
         round(r10, 4), round(r11, 4), round(r12, 4),

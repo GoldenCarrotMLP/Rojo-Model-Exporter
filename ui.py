@@ -9,22 +9,25 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
 
     @classmethod
     def poll(cls, context):
-        # Always show this panel so we can see the Sync button
         return True 
 
     def draw(self, context):
         layout = self.layout
         scene = context.scene
         obj = context.active_object
+        roblox_scene = scene.roblox_props # Short reference
         
-        # --- QUICK SYNC BUTTON ---
-        # Checks if a path is set
-        if scene.roblox_props.export_path:
-            row = layout.row()
+        # --- QUICK SYNC SECTION ---
+        box = layout.box()
+        if roblox_scene.export_path:
+            row = box.row()
             row.scale_y = 1.5
             row.operator("roblox.quick_sync", text="Sync to Roblox", icon='FILE_REFRESH')
+            
+            # This line requires 'auto_sync' to be in properties.py
+            box.prop(roblox_scene, "auto_sync", text="Auto-Sync on Save", icon='FILE_TICK')
         else:
-            layout.label(text="Set Export Path in Scene Properties", icon='INFO')
+            box.label(text="Set Export Path in Scene Properties", icon='INFO')
             
         layout.separator()
 
@@ -34,28 +37,30 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
             box = layout.box()
             box.label(text="Object Data", icon='MESH_DATA')
             box.prop(obj.roblox_props, "rbx_type", text="Type")
+            
             if obj.roblox_props.rbx_type == 'Part':
                 box.prop(obj.roblox_props, "rbx_shape", text="Shape")
                 
-            # Child Behavior
-            mesh_children = [c for c in obj.children if c.type == 'MESH']
-            if len(mesh_children) > 0:
-                box.prop(obj.roblox_props, "child_behavior", text="Children")
+            elif obj.roblox_props.rbx_type == 'MeshPart':
+                mesh_box = layout.box()
+                mesh_name = obj.data.name
+                
+                # Check if it has our magical prefix
+                if mesh_name.startswith("rblx_id_"):
+                    asset_id = mesh_name.split("_")[2].split(".")[0]
+                    mesh_box.label(text=f"Linked to ID: {asset_id}", icon='LINKED')
+                    mesh_box.label(text=f"Data: {mesh_name}", icon='MESH_DATA')
+                    
+                    # Warn them if it's a duplicated data block
+                    if ".001" in mesh_name or ".002" in mesh_name:
+                        mesh_box.label(text="Warning: Mesh data was duplicated.", icon='ERROR')
+                else:
+                    mesh_box.label(text="Mesh is not uploaded yet.", icon='UNLINKED')
+                    mesh_box.operator("roblox.upload_meshpart", text="Upload MeshPart", icon='CLOUDGC')
+                    
+                    # Dropdown to assign an existing mesh
+                    mesh_box.prop(obj.roblox_props, "existing_mesh_selector", text="")
 
-            # Material Level
-            if obj.active_material:
-                box = layout.box()
-                box.label(text="Material Data", icon='MATERIAL')
-                box.prop(obj.active_material.roblox_props, "material_type", text="Material")
-                box.operator("object.sync_roblox_shader", text="Sync Viewport Shader", icon='SHADING_RENDERED')
-                box.label(text="Edit Color/Alpha in Material Tab", icon='INFO')
-
-                box.operator("roblox.add_texture_node", text="Add Roblox Texture", icon='TEXTURE')
-            
-                box.label(text="Edit Textures in Shader Editor", icon='INFO')
-
-            else:
-                layout.label(text="No Material assigned!", icon='ERROR')
 
 class SCENE_PT_roblox_settings(bpy.types.Panel):
     """Panel in the Scene Properties tab to set the export path"""
@@ -69,6 +74,7 @@ class SCENE_PT_roblox_settings(bpy.types.Panel):
         layout = self.layout
         scene = context.scene
         layout.prop(scene.roblox_props, "export_path")
+        layout.prop(scene.roblox_props, "auto_sync") # Added here too for convenience
         layout.operator("roblox.quick_sync", text="Force Sync", icon='FILE_REFRESH')
 
 def register():

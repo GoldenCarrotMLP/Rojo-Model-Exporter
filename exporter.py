@@ -4,6 +4,7 @@ import os
 import mathutils
 from bpy_extras.io_utils import ExportHelper
 from bpy.types import Operator
+from bpy.app.handlers import persistent
 
 from .node_builder import process_object_tree
 
@@ -100,12 +101,45 @@ class EXPORT_OT_rojo_project(Operator, ExportHelper):
 def menu_func_export(self, context):
     self.layout.operator(EXPORT_OT_rojo_project.bl_idname, text="Rojo Project (.project.json)")
 
+@persistent
+def auto_sync_handler(*args):
+    """Triggered automatically by Blender after saving a .blend file."""
+    context = bpy.context
+    # Context might be occasionally restricted during save, safely grab the scene
+    if not hasattr(context, "scene"):
+        return
+        
+    props = context.scene.roblox_props
+    
+    # Only export if the checkbox is checked AND we have a valid path
+    if props.auto_sync and props.export_path:
+        raw_path = props.export_path
+        filepath = bpy.path.abspath(raw_path)
+        
+        # Ensure correct extension
+        if not filepath.lower().endswith(".project.json"):
+            base = os.path.splitext(filepath)[0]
+            if base.lower().endswith(".project"): 
+                base = os.path.splitext(base)[0]
+            filepath = base + ".project.json"
+            
+        try:
+            export_rojo_project(filepath, context)
+            print(f"[Roblox Builder] Auto-Synced on Save to: {filepath}")
+        except Exception as e:
+            print(f"[Roblox Builder] Auto-Sync failed: {e}")
+
 def register():
     bpy.utils.register_class(EXPORT_OT_rojo_project)
     bpy.utils.register_class(ROBLOX_OT_quick_sync) # Register new operator
+        # NEW: Register the save handler
+    if auto_sync_handler not in bpy.app.handlers.save_post:
+        bpy.app.handlers.save_post.append(auto_sync_handler)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
 
 def unregister():
+    if auto_sync_handler in bpy.app.handlers.save_post:
+        bpy.app.handlers.save_post.remove(auto_sync_handler)
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.utils.unregister_class(ROBLOX_OT_quick_sync)
     bpy.utils.unregister_class(EXPORT_OT_rojo_project)

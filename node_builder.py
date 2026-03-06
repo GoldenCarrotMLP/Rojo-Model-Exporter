@@ -5,42 +5,53 @@ from .material_utils import get_material_data, get_texture_data # Added get_text
 from .node_components import get_roblox_class
 
 def build_part_node(obj, accumulated_matrix, depsgraph):
-    """Generates the dictionary for a single Part."""
     props = getattr(obj, "roblox_props", None)
     mat_data = get_material_data(obj)
-    
-    # Calculate final transform using the accumulated matrix
     size, cframe = get_roblox_transform(obj, accumulated_matrix, depsgraph)
     
-    node = {
-        "$className": get_roblox_class(obj),
-        "$id": obj.name,
-        "$properties": {
-            "Size": size,
-            "CFrame": cframe,
-            "Color": mat_data["Color"],
-            "Transparency": mat_data["Transparency"],
-            "Reflectance": mat_data["Reflectance"],
-            "CastShadow": mat_data["CastShadow"],
-            "Material": mat_data["Material"],
-            "Anchored": True,
-        }
-    }
-    
-    if props and props.rbx_type == "Part":
-        node["$properties"]["Shape"] = props.rbx_shape
+    rbx_type = props.rbx_type if props else "Part"
+    mesh_name = obj.data.name
+
+    # If the user selected MeshPart AND the mesh has been uploaded
+    if rbx_type == "MeshPart" and mesh_name.startswith("rblx_id_"):
+        # Extract the ID. This safely handles "rblx_id_12345.001" by stripping the .001
+        asset_id = mesh_name.split("_")[2].split(".")[0]
         
-    # --- NEW: ADD TEXTURE CHILDREN ---
-    if obj.active_material:
-        textures = get_texture_data(obj.active_material)
-        for i, tex_dict in enumerate(textures):
-            # We generate a unique name for the texture instance
-            # Roblox doesn't require a specific name, but JSON keys must be unique.
-            tex_name = f"Texture_{tex_dict['$properties']['Face']}_{i}"
-            node[tex_name] = tex_dict
+        node = {
+            "$className": "MeshPart",
+            "$id": obj.name,
+            "$properties": {
+                "MeshId": f"rbxassetid://{asset_id}",
+                "Size": size,
+                "CFrame": cframe,
+                "Color": mat_data["Color"],
+                "Transparency": mat_data["Transparency"],
+                "Reflectance": mat_data["Reflectance"],
+                "CastShadow": mat_data["CastShadow"],
+                "Material": mat_data["Material"],
+                "Anchored": True,
+            }
+        }
+    else:
+        # Fallback to standard Part logic
+        node = {
+            "$className": rbx_type if rbx_type != "MeshPart" else "Part",
+            "$id": obj.name,
+            "$properties": {
+                "Size": size,
+                "CFrame": cframe,
+                "Color": mat_data["Color"],
+                "Transparency": mat_data["Transparency"],
+                "Reflectance": mat_data["Reflectance"],
+                "CastShadow": mat_data["CastShadow"],
+                "Material": mat_data["Material"],
+                "Anchored": True,
+            }
+        }
+        if rbx_type == "Part":
+            node["$properties"]["Shape"] = props.rbx_shape
             
     return node
-
 def process_object_tree(obj, parent_matrix, depsgraph):
     """
     The recursive walker.
