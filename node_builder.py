@@ -1,29 +1,21 @@
+import bpy
+import mathutils
 from .math_utils import get_roblox_transform
 from .material_utils import get_material_data
+from .node_components import get_roblox_class
 
-def is_export_root(obj):
-    if obj.type != 'MESH': return False
-    if obj.parent is None or obj.parent.type != 'MESH': return True
-    return False
-
-def build_object_node(obj):
-    """
-    Recursively builds a Part node. 
-    Follows the Rojo 'model.json' schema strictly.
-    """
-    props = obj.roblox_props
+def build_part_node(obj, accumulated_matrix, depsgraph):
+    """Generates the dictionary for a single Part."""
+    props = getattr(obj, "roblox_props", None)
     mat_data = get_material_data(obj)
-    size, cframe = get_roblox_transform(obj)
     
-    valid_children = [c for c in obj.children if c.type == 'MESH']
-    behavior = props.child_behavior
-
-    # Base node structure based on Rojo's JsonModel struct
+    # Calculate final transform using the accumulated matrix
+    size, cframe = get_roblox_transform(obj, accumulated_matrix, depsgraph)
+    
     node = {
-        "name": obj.name,
-        "className": props.rbx_type,
-        "id": obj.name,  # Rojo uses this 'id' field to register the RojoRef
-        "properties": {
+        "$className": get_roblox_class(obj),
+        "$id": obj.name,
+        "$properties": {
             "Size": size,
             "CFrame": cframe,
             "Color": mat_data["Color"],
@@ -32,45 +24,72 @@ def build_object_node(obj):
             "CastShadow": mat_data["CastShadow"],
             "Material": mat_data["Material"],
             "Anchored": True,
-        },
-        "children": []
+        }
     }
     
-    if props.rbx_type == "Part":
-        node["properties"]["Shape"] = props.rbx_shape
-
-    # Process Children
-    for child in valid_children:
-        # Add the child instance
-        node["children"].append(build_object_node(child))
+    if props and props.rbx_type == "Part":
+        node["$properties"]["Shape"] = props.rbx_shape
         
-        # If behavior is WELD, create a WeldConstraint sibling to the child
-        if behavior == 'WELD':
-            node["children"].append({
-                "name": f"Weld_{child.name}",
-                "className": "WeldConstraint",
-                "attributes": {
-                    # This prefix triggers Rojo's 'defer_ref_properties' logic
-                    "Rojo_Target_Part0": obj.name, 
-                    "Rojo_Target_Part1": child.name
-                }
-            })
-            
     return node
 
-def build_collection_node(collection):
-    """Maps Blender Collections to Roblox Folders."""
-    node = {
-        "name": collection.name,
-        "className": "Folder",
-        "children": []
-    }
+def process_object_tree(obj, parent_matrix, depsgraph):
+    """
+    The recursive walker.
+    obj: The Blender Object to process
+    parent_matrix: The World Matrix of the parent (or Instance Spawner)
+    """
+    # Combine parent matrix with local matrix to get the true position in the chain
+    current_matrix = parent_matrix @ obj.matrix_local
     
-    for child_coll in collection.children:
-        node["children"].append(build_collection_node(child_coll))
+    nodes = {}
+    
+    # --- CASE A: MESH ---
+    if obj.type == 'MESH':
+        part_node = build_part_node(obj, current_matrix, depsgraph)
         
-    for obj in collection.objects:
-        if is_export_root(obj):
-            node["children"].append(build_object_node(obj))
+        props = getattr(obj, "roblox_props", None)
+        behavior = props.child_behavior if props else "NONE"
+        
+        if behavior == 'MODEL':
+            nodes[obj.name] = {"$className": "Model", "$id": obj.name}
+        else:
+            nodes[obj.name] = part_node
             
-    return node
+        container = nodes[obj.name]
+
+        # Process Children
+        for child in obj.children:
+            child_results = process_object_tree(child, current_matrix, depsgraph)
+            for name, child_node in child_results.items():
+                container[name] = child_node
+                
+                if behavior == 'WELD' and child.type == 'MESH':
+                    weld_name = f"Weld_{name}"
+                    container[weld_name] = {
+                        "$className": "WeldConstraint",
+                        "$attributes": {
+                            "Rojo_Target_Part0": obj.name,
+                            "Rojo_Target_Part1": child.name
+                        }
+                    }
+
+    # --- CASE B: COLLECTION INSTANCE (EMPTY) ---
+    elif obj.instance_type == 'COLLECTION' and obj.instance_collection:
+        nodes[obj.name] = { "$className": "Model", "$id": obj.name }
+        target_col = obj.instance_collection
+        
+        for item in target_col.objects:
+            if item.parent is None: # Only process roots of the instanced collection
+                # We use item.matrix_world here because Collection Items 
+                # are relative to the Collection's internal 0,0,0
+                sub_results = process_object_tree(item, current_matrix, depsgraph)
+                nodes[obj.name].update(sub_results)
+
+    # --- CASE C: EMPTY / OTHER ---
+    else:
+        nodes[obj.name] = { "$className": "Model", "$id": obj.name }
+        for child in obj.children:
+            child_results = process_object_tree(child, current_matrix, depsgraph)
+            nodes[obj.name].update(child_results)
+
+    return nodes
