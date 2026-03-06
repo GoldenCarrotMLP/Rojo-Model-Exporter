@@ -1,4 +1,6 @@
 __pycache__
+__pycache__/*
+*.pyc
 dump-files.mjs
 node_modules
 dump.txt
