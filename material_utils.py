@@ -1,7 +1,8 @@
+import bpy
 def get_material_data(obj):
-    """Scrapes appearance data from the active Blender material nodes."""
+    """Scrapes appearance data directly from the shader nodes."""
     data = {
-        "Color":[0.6, 0.6, 0.6],
+        "Color": [0.63, 0.64, 0.63], # 'Medium stone grey' default
         "Transparency": 0.0,
         "Reflectance": 0.0,
         "CastShadow": True,
@@ -12,23 +13,40 @@ def get_material_data(obj):
     if not mat:
         return data
         
-    data["Material"] = mat.roblox_props.material_type
+    data["Material"] = getattr(mat.roblox_props, "material_type", "Plastic")
     data["CastShadow"] = True
     
     if mat.use_nodes and mat.node_tree:
-        bsdf = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
-        if bsdf:
-            col_input = bsdf.inputs.get('Base Color')
-            if col_input:
-                col = col_input.default_value
-                data["Color"] = [round(col[0], 3), round(col[1], 3), round(col[2], 3)]
+        nodes = mat.node_tree.nodes
+        
+        # 1. Try to get color from the dedicated "baseColor" node (Uber-Shader)
+        base_color_node = nodes.get("baseColor")
+        if base_color_node and base_color_node.type == 'RGB':
+            col = base_color_node.outputs[0].default_value
+            data["Color"] = [round(col[0], 3), round(col[1], 3), round(col[2], 3)]
             
+        # 2. Fallback: Try to get color from Principled BSDF
+        else:
+            bsdf = next((n for n in nodes if n.type == 'BSDF_PRINCIPLED'), None)
+            if bsdf:
+                col_input = bsdf.inputs.get('Base Color')
+                if col_input and not col_input.is_linked:
+                    col = col_input.default_value
+                    data["Color"] = [round(col[0], 3), round(col[1], 3), round(col[2], 3)]
+
+        # 3. Get Transparency/Reflectance from BSDF
+        bsdf = next((n for n in nodes if n.type == 'BSDF_PRINCIPLED'), None)
+        if bsdf:
+            # Transparency (Inverted Alpha)
             alpha_input = bsdf.inputs.get('Alpha')
             if alpha_input:
                 data["Transparency"] = round(1.0 - alpha_input.default_value, 3)
             
+            # Reflectance (Inverted Roughness is a close approximation for Roblox)
             rough_input = bsdf.inputs.get('Roughness')
             if rough_input:
+                # Roblox Reflectance is 0-1, Roughness is 1-0. 
+                # A rough object (1.0) has 0.0 reflectance.
                 data["Reflectance"] = round(1.0 - rough_input.default_value, 3)
             
     return data

@@ -18,7 +18,7 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
         obj = context.active_object
         roblox_scene = scene.roblox_props
         
-        # ... (Sync Box) ...
+        # --- SYNC BOX ---
         box = layout.box()
         if roblox_scene.export_path:
             row = box.row()
@@ -44,27 +44,28 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
                     is_valid_template = True
 
             if is_valid_template:
-                # Color & Texture Toggle
+                box.prop(mat.roblox_props, "material_type", text="Material")
+                
                 node_col = mat.node_tree.nodes.get("baseColor")
                 if node_col:
                     box.prop(node_col.outputs[0], "default_value", text="Base Color")
                 
                 box.prop(obj.roblox_props, "use_texture", text="Enable Textures")
                 
-                # UPLOAD TEXTURES BUTTON
-                row = box.row()
-                row.operator("roblox.upload_textures", text="Upload Textures", icon='IMAGE_DATA')
+                # --- CHANGED: Only show Sync button if textures are enabled ---
+                if obj.roblox_props.use_texture:
+                    row = box.row()
+                    row.operator("roblox.upload_textures", text="Sync Textures", icon='IMAGE_DATA')
                 
                 box.label(text=f"Active: {mat.name}", icon='CHECKMARK')
                 
             else:
                 box.label(text="Incompatible Material", icon='ERROR')
-                if layout.operator("roblox.fix_material", text="Apply Roblox Template", icon='ADD'):
-                    return
+                box.operator("roblox.fix_material", text="Apply Roblox Template", icon='ADD')
 
             layout.separator()
 
-            # ... (Rest of Object Data Box) ...
+            # --- OBJECT DATA ---
             box = layout.box()
             box.label(text="Object Data", icon='MESH_DATA')
             box.prop(obj.roblox_props, "rbx_type", text="Type")
@@ -83,7 +84,7 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
                         mesh_id = parts[3].split(".")[0]
                         mesh_box.label(text=f"MeshID: {mesh_id}", icon='MESH_DATA')
                         mesh_box.label(text=f"ModelID: {model_id}", icon='PACKAGE')
-                    else:
+                    elif len(parts) >= 3:
                         mesh_id = parts[2].split(".")[0]
                         mesh_box.label(text=f"MeshID: {mesh_id}", icon='MESH_DATA')
                         
@@ -97,7 +98,6 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
                 
                 mesh_box.prop(obj.roblox_props, "existing_mesh_selector", text="")
 
-
 class ROBLOX_OT_fix_material(bpy.types.Operator):
     """Creates a new instance of the Roblox Shader Template and applies it"""
     bl_idname = "roblox.fix_material"
@@ -106,21 +106,15 @@ class ROBLOX_OT_fix_material(bpy.types.Operator):
     def execute(self, context):
         obj = context.active_object
         if obj:
-            # Calls the function that does bpy.data.materials.new()
             apply_template_to_object(obj)
-            
-            # Force an update of the drivers immediately so visual state matches properties
             if hasattr(obj.roblox_props, "use_texture"):
-                 # Toggling triggers the update function
                  cur = obj.roblox_props.use_texture
                  obj.roblox_props.use_texture = not cur 
                  obj.roblox_props.use_texture = cur
-                 
             self.report({'INFO'}, "New Material Instance Applied")
         return {'FINISHED'}
 
 class SCENE_PT_roblox_settings(bpy.types.Panel):
-    """Panel in the Scene Properties tab to set the export path"""
     bl_label = "Roblox Settings"
     bl_idname = "SCENE_PT_roblox_settings"
     bl_space_type = 'PROPERTIES'

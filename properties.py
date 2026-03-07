@@ -3,10 +3,6 @@ from .shader import sync_material_to_nodes
 from .constants import ROBLOX_MATERIALS
 
 def update_shader_drivers(self, context):
-    """
-    Called when rbx_type or use_texture changes.
-    Updates the underlying node tree values (0.0/1.0) to match the UI.
-    """
     obj = context.active_object
     if not obj or not obj.active_material: return
     
@@ -14,14 +10,10 @@ def update_shader_drivers(self, context):
     if not mat.use_nodes: return
     nodes = mat.node_tree.nodes
     
-    # 1. Drive isMeshPart? Node
-    # Logic: Factor 1.0 = MeshPart Texture input
     if "isMeshPart?" in nodes:
         val = 1.0 if self.rbx_type == 'MeshPart' else 0.0
         nodes["isMeshPart?"].outputs[0].default_value = val
         
-    # 2. Drive useTexture? Node
-    # Logic: Factor 1.0 = Use Texture input
     if "useTexture?" in nodes:
         val = 1.0 if self.use_texture else 0.0
         nodes["useTexture?"].outputs[0].default_value = val
@@ -29,9 +21,8 @@ def update_shader_drivers(self, context):
 def on_material_type_update(self, context):
     sync_material_to_nodes(self.id_data)
     
-# ... (get_uploaded_meshes and assign_mesh_data remain the same) ...
 def get_uploaded_meshes(self, context):
-    items = [("NONE", "Select an existing mesh...", "")]
+    items =[("NONE", "Select an existing mesh...", "")]
     for mesh in bpy.data.meshes:
         if mesh.name.startswith("rblx_mesh_"):
             parts = mesh.name.split("_")
@@ -39,7 +30,7 @@ def get_uploaded_meshes(self, context):
                 model_id = parts[2]
                 mesh_id = parts[3].split(".")[0]
                 items.append((mesh.name, f"Mesh ID: {mesh_id}", f"Model ID: {model_id}"))
-            else:
+            elif len(parts) >= 3:
                 mesh_id = parts[2].split(".")[0]
                 items.append((mesh.name, f"Mesh ID: {mesh_id}", f"Data: {mesh.name}"))
     return items
@@ -71,15 +62,14 @@ class RobloxObjectProperties(bpy.types.PropertyGroup):
             ('MeshPart', "MeshPart", ""),
         ],
         default='Part',
-        update=update_shader_drivers # TRIGGER UPDATE HERE
+        update=update_shader_drivers 
     )
     
-    # NEW: The Boolean for your UI
     use_texture: bpy.props.BoolProperty(
         name="Use Texture",
         description="Enable or disable textures on the shader",
         default=True,
-        update=update_shader_drivers # TRIGGER UPDATE HERE
+        update=update_shader_drivers 
     )
     
     rbx_shape: bpy.props.EnumProperty(
@@ -100,7 +90,6 @@ class RobloxObjectProperties(bpy.types.PropertyGroup):
         update=assign_mesh_data
     )
 
-# ... (Scene Properties and Register/Unregister remain the same) ...
 class RobloxSceneProperties(bpy.types.PropertyGroup):
     export_path: bpy.props.StringProperty(
         name="Target File",
