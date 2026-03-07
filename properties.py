@@ -1,21 +1,27 @@
 import bpy
 from .shader import sync_material_to_nodes
-from .constants import ROBLOX_MATERIALS  # NEW
+from .constants import ROBLOX_MATERIALS
 
 def on_material_type_update(self, context):
     sync_material_to_nodes(self.id_data)
 
 def get_uploaded_meshes(self, context):
-    """Dynamically populates a dropdown with all meshes starting with rblx_id_"""
+    """Dynamically populates a dropdown with all uploaded meshes"""
     items = [("NONE", "Select an existing mesh...", "")]
     for mesh in bpy.data.meshes:
-        if mesh.name.startswith("rblx_id_"):
-            asset_id = mesh.name.split("_")[2].split(".")[0]
-            items.append((mesh.name, f"Asset ID: {asset_id}", f"Mesh Data: {mesh.name}"))
+        if mesh.name.startswith("rblx_mesh_"):
+            parts = mesh.name.split("_")
+            if len(parts) >= 4:
+                model_id = parts[2]
+                mesh_id = parts[3].split(".")[0]
+                items.append((mesh.name, f"Mesh ID: {mesh_id}", f"Model ID: {model_id}"))
+            else:
+                # Fallback for old format
+                mesh_id = parts[2].split(".")[0]
+                items.append((mesh.name, f"Mesh ID: {mesh_id}", f"Data: {mesh.name}"))
     return items
 
 def assign_mesh_data(self, context):
-    """When the user selects a mesh from the dropdown, apply it to the active object"""
     if self.existing_mesh_selector != "NONE":
         obj = context.active_object
         if obj and obj.type == 'MESH':
@@ -27,7 +33,7 @@ def assign_mesh_data(self, context):
 class RobloxMaterialProperties(bpy.types.PropertyGroup):
     material_type: bpy.props.EnumProperty(
         name="Roblox Material",
-        items=ROBLOX_MATERIALS, # Referred here
+        items=ROBLOX_MATERIALS,
         default='Plastic',
         update=on_material_type_update
     )
@@ -63,9 +69,9 @@ class RobloxObjectProperties(bpy.types.PropertyGroup):
     child_behavior: bpy.props.EnumProperty(
         name="Child Behavior",
         items=[
-            ('WELD', "Weld to Parent", "Creates a WeldConstraint linking child to this object"),
-            ('NONE', "Just Parent", "Standard parenting, no physics welds created"),
-            ('MODEL', "Group as Model", "Turns this object into a Model, making children its descendants"),
+            ('WELD', "Weld to Parent", ""),
+            ('NONE', "Just Parent", ""),
+            ('MODEL', "Group as Model", ""),
         ],
         default='WELD'
     )

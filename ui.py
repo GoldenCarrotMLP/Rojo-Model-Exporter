@@ -15,7 +15,7 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
         layout = self.layout
         scene = context.scene
         obj = context.active_object
-        roblox_scene = scene.roblox_props # Short reference
+        roblox_scene = scene.roblox_props
         
         # --- QUICK SYNC SECTION ---
         box = layout.box()
@@ -23,15 +23,12 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
             row = box.row()
             row.scale_y = 1.5
             row.operator("roblox.quick_sync", text="Sync to Roblox", icon='FILE_REFRESH')
-            
-            # This line requires 'auto_sync' to be in properties.py
             box.prop(roblox_scene, "auto_sync", text="Auto-Sync on Save", icon='FILE_TICK')
         else:
             box.label(text="Set Export Path in Scene Properties", icon='INFO')
             
         layout.separator()
 
-        # Only draw object properties if a mesh is selected
         if obj and obj.type == 'MESH':
             # Object Level
             box = layout.box()
@@ -45,22 +42,27 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
                 mesh_box = layout.box()
                 mesh_name = obj.data.name
                 
-                # Check if it has our magical prefix
-                if mesh_name.startswith("rblx_id_"):
-                    asset_id = mesh_name.split("_")[2].split(".")[0]
-                    mesh_box.label(text=f"Linked to ID: {asset_id}", icon='LINKED')
-                    mesh_box.label(text=f"Data: {mesh_name}", icon='MESH_DATA')
+                if mesh_name.startswith("rblx_mesh_"):
+                    parts = mesh_name.split("_")
+                    if len(parts) >= 4:
+                        model_id = parts[2]
+                        mesh_id = parts[3].split(".")[0]
+                        mesh_box.label(text=f"MeshID: {mesh_id}", icon='MESH_DATA')
+                        mesh_box.label(text=f"ModelID: {model_id}", icon='PACKAGE')
+                    else:
+                        mesh_id = parts[2].split(".")[0]
+                        mesh_box.label(text=f"MeshID: {mesh_id}", icon='MESH_DATA')
+                        mesh_box.label(text="ModelID: Unknown (Legacy)", icon='ERROR')
                     
-                    # Warn them if it's a duplicated data block
-                    if ".001" in mesh_name or ".002" in mesh_name:
-                        mesh_box.label(text="Warning: Mesh data was duplicated.", icon='ERROR')
+                    if ".00" in mesh_name:
+                        mesh_box.label(text="Warning: Mesh duplicated.", icon='ERROR')
+                        
+                    mesh_box.operator("roblox.upload_meshpart", text="Update MeshPart", icon='FILE_REFRESH')
                 else:
                     mesh_box.label(text="Mesh is not uploaded yet.", icon='UNLINKED')
                     mesh_box.operator("roblox.upload_meshpart", text="Upload MeshPart", icon='EXPORT')
                     
-                    # Dropdown to assign an existing mesh
-                    mesh_box.prop(obj.roblox_props, "existing_mesh_selector", text="")
-
+                mesh_box.prop(obj.roblox_props, "existing_mesh_selector", text="")
 
 class SCENE_PT_roblox_settings(bpy.types.Panel):
     """Panel in the Scene Properties tab to set the export path"""
@@ -74,7 +76,7 @@ class SCENE_PT_roblox_settings(bpy.types.Panel):
         layout = self.layout
         scene = context.scene
         layout.prop(scene.roblox_props, "export_path")
-        layout.prop(scene.roblox_props, "auto_sync") # Added here too for convenience
+        layout.prop(scene.roblox_props, "auto_sync") 
         layout.operator("roblox.quick_sync", text="Force Sync", icon='FILE_REFRESH')
 
 def register():

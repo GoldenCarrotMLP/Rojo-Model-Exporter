@@ -1,7 +1,7 @@
 import bpy
 import mathutils
 from .math_utils import get_roblox_transform
-from .material_utils import get_material_data, get_texture_data # Added get_texture_data
+from .material_utils import get_material_data, get_texture_data
 from .node_components import get_roblox_class
 
 def build_part_node(obj, accumulated_matrix, depsgraph):
@@ -12,31 +12,29 @@ def build_part_node(obj, accumulated_matrix, depsgraph):
     rbx_type = props.rbx_type if props else "Part"
     mesh_name = obj.data.name
 
-    # --- MESHPART (PACKAGE) LOGIC ---
-    if rbx_type == "MeshPart" and mesh_name.startswith("rblx_id_"):
-        asset_id = mesh_name.split("_")[2].split(".")[0]
+    # --- MESHPART LOGIC ---
+    if rbx_type == "MeshPart" and mesh_name.startswith("rblx_mesh_"):
+        parts = mesh_name.split("_")
         
-        # Calculate a uniform scale (Roblox Models scale uniformly via Model.Scale)
-        _, _, world_scale = accumulated_matrix.decompose()
-        uniform_scale = (world_scale.x + world_scale.y + world_scale.z) / 3.0
-        
+        # Handle format: rblx_mesh_MODELID_MESHID
+        if len(parts) >= 4:
+            mesh_id = parts[3].split(".")[0]
+        # Fallback for old format: rblx_mesh_MESHID
+        else:
+            mesh_id = parts[2].split(".")[0]
+            
         node = {
-            "$className": "Model",
+            "$className": "MeshPart",
             "$id": obj.name,
-            
-            # MAGIC FIX: Tells Rojo to STOP deleting the mesh when the package downloads!
-            "$ignoreUnknownInstances": True, 
-            
             "$properties": {
-                "WorldPivot": cframe,
-                "Scale": round(uniform_scale, 3)
-            },
-            "PackageLink": {
-                "$className": "PackageLink",
-                "$properties": {
-                    "PackageId": f"rbxassetid://{asset_id}",
-                    "AutoUpdate": True
-                }
+                "Size": size,
+                "CFrame": cframe,
+                "Color": mat_data["Color"],
+                "Transparency": mat_data["Transparency"],
+                "Reflectance": mat_data["Reflectance"],
+                "Material": mat_data["Material"],
+                "Anchored": True,
+                "MeshId": f"rbxassetid://{mesh_id}"
             }
         }
         
@@ -62,17 +60,9 @@ def build_part_node(obj, accumulated_matrix, depsgraph):
     return node
 
 def process_object_tree(obj, parent_matrix, depsgraph):
-    """
-    The recursive walker.
-    obj: The Blender Object to process
-    parent_matrix: The World Matrix of the parent (or Instance Spawner)
-    """
-    # Combine parent matrix with local matrix to get the true position in the chain
     current_matrix = parent_matrix @ obj.matrix_local
-    
     nodes = {}
     
-    # --- CASE A: MESH ---
     if obj.type == 'MESH':
         part_node = build_part_node(obj, current_matrix, depsgraph)
         
@@ -86,7 +76,6 @@ def process_object_tree(obj, parent_matrix, depsgraph):
             
         container = nodes[obj.name]
 
-        # Process Children
         for child in obj.children:
             child_results = process_object_tree(child, current_matrix, depsgraph)
             for name, child_node in child_results.items():
@@ -102,7 +91,6 @@ def process_object_tree(obj, parent_matrix, depsgraph):
                         }
                     }
 
-    # --- CASE B: COLLECTION INSTANCE (EMPTY) ---
     elif obj.instance_type == 'COLLECTION' and obj.instance_collection:
         nodes[obj.name] = { "$className": "Model", "$id": obj.name }
         target_col = obj.instance_collection
@@ -112,7 +100,6 @@ def process_object_tree(obj, parent_matrix, depsgraph):
                 sub_results = process_object_tree(item, current_matrix, depsgraph)
                 nodes[obj.name].update(sub_results)
 
-    # --- CASE C: EMPTY / OTHER ---
     else:
         nodes[obj.name] = { "$className": "Model", "$id": obj.name }
         for child in obj.children:

@@ -1,8 +1,14 @@
 # constants.py
 
-# Conversion factor: 1 Stud = 0.28 Meters 
+# Conversion factor: 1 Stud = 0.5 Meters 
 # (You mentioned 0.5 in your previous math_utils, adjust if needed)
 METERS_TO_STUDS = 1.0 / 0.5
+
+# Scale applied when exporting the FBX to Roblox.
+# Blender exports in cm by default, which can make meshes huge in Roblox.
+# Adjust this if your meshes are importing too large or too small.
+FBX_EXPORT_SCALE = 0.001 * METERS_TO_STUDS
+
 
 # Roblox API Details
 ASSETS_API_URL = "https://apis.roblox.com/assets/v1/assets"
