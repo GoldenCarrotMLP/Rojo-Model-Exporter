@@ -1,6 +1,6 @@
 bl_info = {
     "name": "Roblox Map Builder",
-    "author": "You",
+    "author": "Plasma",
     "version": (1, 5),
     "blender": (3, 0, 0),
     "location": "View3D > Sidebar > Roblox",
