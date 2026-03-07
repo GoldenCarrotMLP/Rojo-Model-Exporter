@@ -110,8 +110,10 @@ def register():
     ui.register()
     exporter.register()
     uploader.register()
+    texture_uploader.register() # <--- ADDED THIS
 
 def unregister():
+    texture_uploader.unregister()
     uploader.unregister()
     exporter.unregister()
     ui.unregister()
