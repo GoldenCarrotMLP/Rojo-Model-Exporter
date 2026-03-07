@@ -5,9 +5,48 @@ import urllib.request
 import urllib.error
 from .constants import ASSETS_API_URL, MULTIPART_BOUNDARY
 
+def upload_image(api_key, file_data, name, creator_id, creator_type):
+    """Uploads an image (png/jpg) to Roblox."""
+    
+    # 1. Prepare Request
+    request_data = {
+        "assetType": "Image", # Different from Model
+        "displayName": name[:50],
+        "description": "Blender Texture",
+        "creationContext": {
+            "creator": { "userId" if creator_type == "USER" else "groupId": str(creator_id) }
+        }
+    }
+    
+    # 2. Build Multipart Body
+    body = bytearray()
+    body.extend(f"--{MULTIPART_BOUNDARY}\r\n".encode('utf-8'))
+    body.extend(b"Content-Disposition: form-data; name=\"request\"\r\n")
+    body.extend(b"Content-Type: application/json\r\n\r\n")
+    body.extend(json.dumps(request_data).encode('utf-8'))
+    body.extend(b"\r\n")
+    
+    body.extend(f"--{MULTIPART_BOUNDARY}\r\n".encode('utf-8'))
+    # Assuming png for generic uploads, usually works for jpg too in multipart
+    body.extend(f"Content-Disposition: form-data; name=\"fileContent\"; filename=\"texture.png\"\r\n".encode('utf-8'))
+    body.extend(b"Content-Type: image/png\r\n\r\n")
+    body.extend(file_data)
+    body.extend(b"\r\n")
+    body.extend(f"--{MULTIPART_BOUNDARY}--\r\n".encode('utf-8'))
+    
+    req = urllib.request.Request(ASSETS_API_URL, data=body, method='POST')
+    req.add_header('x-api-key', api_key)
+    req.add_header('Content-Type', f'multipart/form-data; boundary={MULTIPART_BOUNDARY}')
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read())
+            return f"https://apis.roblox.com/assets/v1/{res_data['path']}"
+    except urllib.error.HTTPError as e:
+        raise Exception(f"Image Upload Failed: {e.read().decode('utf-8')}")
+
 def upload_model(api_key, file_data, name, creator_id, creator_type, model_id=None):
     """Uploads or Updates an FBX model via the Assets API."""
-    
     if model_id:
         api_url = f"{ASSETS_API_URL}/{model_id}"
         method = 'PATCH'
@@ -50,15 +89,13 @@ def upload_model(api_key, file_data, name, creator_id, creator_type, model_id=No
         raise Exception(f"Upload Failed: {e.read().decode('utf-8')}")
 
 def poll_operation(api_key, operation_url):
-    """Checks the status of an ongoing upload operation."""
     req = urllib.request.Request(operation_url, method='GET')
     req.add_header('x-api-key', api_key)
-    
     with urllib.request.urlopen(req) as response:
         return json.loads(response.read())
 
 def download_and_extract_mesh_id(api_key, asset_id):
-    """Hits the Asset Delivery API, downloads the model, and regexes the MeshId."""
+    # (Same as before, no changes needed here)
     url = f"https://apis.roblox.com/asset-delivery-api/v1/assetId/{asset_id}"
     req = urllib.request.Request(url, method='GET')
     req.add_header('x-api-key', api_key)

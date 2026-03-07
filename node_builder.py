@@ -1,86 +1,43 @@
 import bpy
-import mathutils
-from .math_utils import get_roblox_transform
-from .material_utils import get_material_data, get_texture_data
-from .node_components import get_roblox_class
-
-def build_part_node(obj, accumulated_matrix, depsgraph):
-    props = getattr(obj, "roblox_props", None)
-    mat_data = get_material_data(obj)
-    size, cframe = get_roblox_transform(obj, accumulated_matrix, depsgraph)
-    
-    rbx_type = props.rbx_type if props else "Part"
-    mesh_name = obj.data.name
-
-    # --- MESHPART LOGIC ---
-    if rbx_type == "MeshPart" and mesh_name.startswith("rblx_mesh_"):
-        parts = mesh_name.split("_")
-        
-        # Handle format: rblx_mesh_MODELID_MESHID
-        if len(parts) >= 4:
-            mesh_id = parts[3].split(".")[0]
-        # Fallback for old format: rblx_mesh_MESHID
-        else:
-            mesh_id = parts[2].split(".")[0]
-            
-        node = {
-            "$className": "MeshPart",
-            "$id": obj.name,
-            "$properties": {
-                "Size": size,
-                "CFrame": cframe,
-                "Color": mat_data["Color"],
-                "Transparency": mat_data["Transparency"],
-                "Reflectance": mat_data["Reflectance"],
-                "Material": mat_data["Material"],
-                "Anchored": True,
-                "MeshId": f"rbxassetid://{mesh_id}"
-            }
-        }
-        
-    # --- PRIMITIVE FALLBACK LOGIC ---
-    else:
-        node = {
-            "$className": rbx_type if rbx_type != "MeshPart" else "Part",
-            "$id": obj.name,
-            "$properties": {
-                "Size": size,
-                "CFrame": cframe,
-                "Color": mat_data["Color"],
-                "Transparency": mat_data["Transparency"],
-                "Reflectance": mat_data["Reflectance"],
-                "CastShadow": mat_data["CastShadow"],
-                "Material": mat_data["Material"],
-                "Anchored": True,
-            }
-        }
-        if rbx_type == "Part":
-            node["$properties"]["Shape"] = props.rbx_shape
-            
-    return node
+from .instance_builder import build_rojo_node
 
 def process_object_tree(obj, parent_matrix, depsgraph):
+    """
+    Recursive walker that structures the hierarchy (Parenting/Welding).
+    Delegates property creation to instance_builder.
+    """
+    # Calculate global matrix for this step
     current_matrix = parent_matrix @ obj.matrix_local
+    
     nodes = {}
     
+    # --- 1. PROCESS CURRENT OBJECT ---
     if obj.type == 'MESH':
-        part_node = build_part_node(obj, current_matrix, depsgraph)
+        # Generate the properties (Size, Color, MeshID, TextureID)
+        # This is where the 100 missing lines went!
+        part_node = build_rojo_node(obj, current_matrix, depsgraph)
         
         props = getattr(obj, "roblox_props", None)
         behavior = props.child_behavior if props else "NONE"
         
+        # --- HIERARCHY LOGIC ---
         if behavior == 'MODEL':
+            # Ignore the mesh data, just act as a folder/container
             nodes[obj.name] = {"$className": "Model", "$id": obj.name}
         else:
+            # Use the actual MeshPart/Part data we built
             nodes[obj.name] = part_node
             
         container = nodes[obj.name]
 
+        # --- 2. PROCESS CHILDREN ---
         for child in obj.children:
             child_results = process_object_tree(child, current_matrix, depsgraph)
+            
             for name, child_node in child_results.items():
                 container[name] = child_node
                 
+                # Handle Weld Logic (Only if parent is a physical part)
                 if behavior == 'WELD' and child.type == 'MESH':
                     weld_name = f"Weld_{name}"
                     container[weld_name] = {
@@ -91,6 +48,7 @@ def process_object_tree(obj, parent_matrix, depsgraph):
                         }
                     }
 
+    # --- PROCESS COLLECTION INSTANCES ---
     elif obj.instance_type == 'COLLECTION' and obj.instance_collection:
         nodes[obj.name] = { "$className": "Model", "$id": obj.name }
         target_col = obj.instance_collection
@@ -100,6 +58,7 @@ def process_object_tree(obj, parent_matrix, depsgraph):
                 sub_results = process_object_tree(item, current_matrix, depsgraph)
                 nodes[obj.name].update(sub_results)
 
+    # --- PROCESS EMPTIES / OTHERS ---
     else:
         nodes[obj.name] = { "$className": "Model", "$id": obj.name }
         for child in obj.children:

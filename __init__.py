@@ -96,13 +96,13 @@ class RobloxBuilderPreferences(bpy.types.AddonPreferences):
 # In __init__.py find the module list and update it:
 if "bpy" in locals():
     import importlib
-    modules =["constants", "properties", "ui", "shader", "math_utils", "material_utils", "export_utils", "api_client", "node_components", "node_builder", "exporter", "uploader"]
+    # Added instance_builder
+    modules =["constants", "properties", "ui", "shader", "math_utils", "material_utils", "texture_utils", "export_utils", "api_client", "node_components", "instance_builder", "node_builder", "exporter", "uploader", "texture_uploader", "material_builder"]
     for m in modules:
         if m in locals():
             importlib.reload(locals()[m])
 
-from . import constants, properties, ui, shader, math_utils, material_utils, export_utils, api_client, node_components, node_builder, exporter, uploader
-
+from . import constants, properties, ui, shader, math_utils, material_utils, texture_utils, export_utils, api_client, node_components, instance_builder, node_builder, exporter, uploader, texture_uploader, material_builder
 def register():
     bpy.utils.register_class(ROBLOX_OT_test_api_key)
     bpy.utils.register_class(RobloxBuilderPreferences)

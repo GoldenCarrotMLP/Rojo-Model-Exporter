@@ -14,6 +14,16 @@ FBX_EXPORT_SCALE = 0.001 * METERS_TO_STUDS
 ASSETS_API_URL = "https://apis.roblox.com/assets/v1/assets"
 MULTIPART_BOUNDARY = "----WebKitFormBoundaryRbxBlenderAddon123"
 
+# Map node names to Roblox Enums
+FACE_MAP = {
+    "leftTexture": "Left",
+    "rightTexture": "Right",
+    "frontTexture": "Front",
+    "backTexture": "Back",
+    "topTexture": "Top",
+    "bottomTexture": "Bottom"
+}
+
 # A comprehensive list of Roblox BasePart Materials
 ROBLOX_MATERIALS = [
     ('Asphalt', "Asphalt", ""),
