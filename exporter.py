@@ -8,6 +8,24 @@ from bpy.app.handlers import persistent
 
 from .node_builder import process_object_tree
 
+def process_collection(collection, parent_matrix, depsgraph):
+    """Recursively walks through sub-collections to build nested Folders."""
+    folder_node = { "$className": "Folder" }
+    
+    # 1. Process sub-collections recursively
+    for child_col in collection.children:
+        if child_col.name.lower().startswith(".hidden"):
+            continue
+        folder_node[child_col.name] = process_collection(child_col, parent_matrix, depsgraph)
+        
+    # 2. Process objects directly in this collection
+    for obj in collection.objects:
+        if obj.parent is None:
+            nodes = process_object_tree(obj, parent_matrix, depsgraph)
+            folder_node.update(nodes)
+            
+    return folder_node
+
 def export_rojo_project(filepath, context):
     map_name = os.path.splitext(os.path.basename(filepath))[0]
     if map_name.endswith(".project"):
@@ -19,17 +37,13 @@ def export_rojo_project(filepath, context):
     project_tree = { "$className": "Model" }
     identity = mathutils.Matrix.Identity(4)
 
-    # 1. Process Collections
+    # 1. Process Collections Recursively
     for col in context.scene.collection.children:
         if col.name.lower().startswith(".hidden"):
             continue
         
-        folder_node = { "$className": "Folder" }
-        for obj in col.objects:
-            if obj.parent is None:
-                nodes = process_object_tree(obj, identity, depsgraph)
-                folder_node.update(nodes)
-        project_tree[col.name] = folder_node
+        # We now pass it to our new recursive function
+        project_tree[col.name] = process_collection(col, identity, depsgraph)
         
     # 2. Process Loose Scene Objects
     for obj in context.scene.collection.objects:
@@ -44,7 +58,7 @@ def export_rojo_project(filepath, context):
         
     print(f"[Rojo] Synced to: {filepath}")
 
-# --- NEW QUICK SYNC OPERATOR ---
+# --- QUICK SYNC OPERATOR ---
 class ROBLOX_OT_quick_sync(Operator):
     """Overwrite the target file immediately"""
     bl_idname = "roblox.quick_sync"
@@ -52,16 +66,11 @@ class ROBLOX_OT_quick_sync(Operator):
     
     def execute(self, context):
         raw_path = context.scene.roblox_props.export_path
-        
-        # Validate path
         if not raw_path:
             self.report({'ERROR'}, "No export path set in Scene Properties!")
             return {'CANCELLED'}
             
-        # Convert relative path (//) to absolute
         filepath = bpy.path.abspath(raw_path)
-        
-        # Ensure extension
         if not filepath.lower().endswith(".project.json"):
             base = os.path.splitext(filepath)[0]
             if base.lower().endswith(".project"): 
@@ -92,9 +101,7 @@ class EXPORT_OT_rojo_project(Operator, ExportHelper):
             filepath = base + ".project.json"
             
         export_rojo_project(filepath, context)
-        # Auto-save this path for future Quick Syncs
         context.scene.roblox_props.export_path = filepath
-        
         self.report({'INFO'}, f"Exported: {os.path.basename(filepath)}")
         return {'FINISHED'}
 
@@ -105,22 +112,16 @@ def menu_func_export(self, context):
 def auto_sync_handler(*args):
     """Triggered automatically by Blender after saving a .blend file."""
     context = bpy.context
-    # Context might be occasionally restricted during save, safely grab the scene
-    if not hasattr(context, "scene"):
-        return
+    if not hasattr(context, "scene"): return
         
     props = context.scene.roblox_props
-    
-    # Only export if the checkbox is checked AND we have a valid path
     if props.auto_sync and props.export_path:
         raw_path = props.export_path
         filepath = bpy.path.abspath(raw_path)
         
-        # Ensure correct extension
         if not filepath.lower().endswith(".project.json"):
             base = os.path.splitext(filepath)[0]
-            if base.lower().endswith(".project"): 
-                base = os.path.splitext(base)[0]
+            if base.lower().endswith(".project"): base = os.path.splitext(base)[0]
             filepath = base + ".project.json"
             
         try:
@@ -131,8 +132,7 @@ def auto_sync_handler(*args):
 
 def register():
     bpy.utils.register_class(EXPORT_OT_rojo_project)
-    bpy.utils.register_class(ROBLOX_OT_quick_sync) # Register new operator
-        # NEW: Register the save handler
+    bpy.utils.register_class(ROBLOX_OT_quick_sync)
     if auto_sync_handler not in bpy.app.handlers.save_post:
         bpy.app.handlers.save_post.append(auto_sync_handler)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
