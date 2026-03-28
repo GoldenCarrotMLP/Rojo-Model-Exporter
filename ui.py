@@ -1,4 +1,5 @@
 import bpy
+import mathutils
 from .material_builder import apply_template_to_object, BASE_NAME
 
 class VIEW3D_PT_roblox_builder(bpy.types.Panel):
@@ -38,8 +39,8 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
             mat = obj.active_material
             is_valid_template = False
             
-            if mat and getattr(mat, "node_tree", None):
-                nt = mat.node_tree
+            nt = getattr(mat, "node_tree", None)
+            if mat and nt:
                 if "isMeshPart?" in nt.nodes and "useTexture?" in nt.nodes:
                     is_valid_template = True
 
@@ -52,7 +53,6 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
                 
                 box.prop(obj.roblox_props, "use_texture", text="Enable Textures")
                 
-                # --- CHANGED: Only show Sync button if textures are enabled ---
                 if obj.roblox_props.use_texture:
                     row = box.row()
                     row.operator("roblox.upload_textures", text="Sync Textures", icon='IMAGE_DATA')
@@ -98,6 +98,108 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
                 
                 mesh_box.prop(obj.roblox_props, "existing_mesh_selector", text="")
 
+            layout.separator()
+            
+            # --- UTILITIES ---
+            box = layout.box()
+            box.label(text="Utilities", icon='MODIFIER')
+            box.operator("roblox.fix_block_rotations", text="Un-bake Block Rotation", icon='MESH_CUBE')
+
+class ROBLOX_OT_fix_block_rotations(bpy.types.Operator):
+    """Calculates the true rotation and center of a rectangular mesh and applies it to the object transforms"""
+    bl_idname = "roblox.fix_block_rotations"
+    bl_label = "Un-bake Block Rotation"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.selected_objects
+
+    def execute(self, context):
+        count = 0
+        for obj in context.selected_objects:
+            if obj.type != 'MESH': continue
+            
+            mesh = obj.data
+            if len(mesh.polygons) == 0: continue
+            
+            # 1. Get current world matrix
+            mw = obj.matrix_world.copy()
+            rot_matrix = mw.to_3x3()
+            
+            # 2. Find three orthogonal axes in WORLD space (The Rotation)
+            n_z = None
+            n_x = None
+            
+            for poly in mesh.polygons:
+                world_norm = (rot_matrix @ poly.normal).normalized()
+                if n_z is None:
+                    n_z = world_norm
+                elif n_x is None:
+                    # If this face is perpendicular to the first one (dot product ~ 0)
+                    if abs(world_norm.dot(n_z)) < 0.05: 
+                        n_x = world_norm
+                if n_z and n_x:
+                    break
+                    
+            if not n_z: continue
+            
+            if not n_x:
+                # Fallback if it's completely flat
+                if abs(n_z.x) < 0.9:
+                    n_x = n_z.cross(mathutils.Vector((1,0,0))).normalized()
+                else:
+                    n_x = n_z.cross(mathutils.Vector((0,1,0))).normalized()
+                    
+            # Calculate the third perpendicular axis
+            n_y = n_z.cross(n_x).normalized()
+            
+            # Construct new Rotation Matrix
+            new_rot_3x3 = mathutils.Matrix((n_x, n_y, n_z)).transposed()
+            inv_rot = new_rot_3x3.inverted()
+            
+            # 3. Find physical bounds using these new axes
+            min_b = mathutils.Vector((float('inf'), float('inf'), float('inf')))
+            max_b = mathutils.Vector((float('-inf'), float('-inf'), float('-inf')))
+            
+            world_verts =[]
+            for v in mesh.vertices:
+                wv = mw @ v.co
+                world_verts.append(wv)
+                
+                local_v = inv_rot @ wv
+                min_b.x = min(min_b.x, local_v.x)
+                min_b.y = min(min_b.y, local_v.y)
+                min_b.z = min(min_b.z, local_v.z)
+                max_b.x = max(max_b.x, local_v.x)
+                max_b.y = max(max_b.y, local_v.y)
+                max_b.z = max(max_b.z, local_v.z)
+                
+            # 4. Find the true center
+            local_center = (min_b + max_b) / 2.0
+            world_center = new_rot_3x3 @ local_center
+            
+            # 5. Build the new pristine World Matrix
+            new_mw = new_rot_3x3.to_4x4()
+            new_mw.translation = world_center
+            
+            # 6. Apply to the object and physically spin vertices to align with it
+            inv_new_mw = new_mw.inverted()
+            for i, v in enumerate(mesh.vertices):
+                v.co = inv_new_mw @ world_verts[i]
+                
+            obj.matrix_world = new_mw
+            mesh.update()
+            count += 1
+            
+        if count > 0:
+            self.report({'INFO'}, f"Successfully un-baked rotation for {count} block(s).")
+        else:
+            self.report({'WARNING'}, "No valid rectangular meshes selected.")
+            
+        return {'FINISHED'}
+
+
 class ROBLOX_OT_fix_material(bpy.types.Operator):
     """Creates a new instance of the Roblox Shader Template and applies it"""
     bl_idname = "roblox.fix_material"
@@ -132,8 +234,10 @@ def register():
     bpy.utils.register_class(VIEW3D_PT_roblox_builder)
     bpy.utils.register_class(SCENE_PT_roblox_settings)
     bpy.utils.register_class(ROBLOX_OT_fix_material)
+    bpy.utils.register_class(ROBLOX_OT_fix_block_rotations)
 
 def unregister():
+    bpy.utils.unregister_class(ROBLOX_OT_fix_block_rotations)
     bpy.utils.unregister_class(ROBLOX_OT_fix_material)
     bpy.utils.unregister_class(SCENE_PT_roblox_settings)
     bpy.utils.unregister_class(VIEW3D_PT_roblox_builder)
