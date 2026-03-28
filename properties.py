@@ -7,7 +7,7 @@ def update_shader_drivers(self, context):
     if not obj or not obj.active_material: return
     
     mat = obj.active_material
-    if not mat.use_nodes: return
+    if not mat or not getattr(mat, "node_tree", None): return
     nodes = mat.node_tree.nodes
     
     if "isMeshPart?" in nodes:

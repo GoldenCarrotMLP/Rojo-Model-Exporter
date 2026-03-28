@@ -42,7 +42,7 @@ def get_texture_configuration(obj):
     config = {"meshpart_id": None, "faces": {}}
     
     mat = obj.active_material
-    if not mat or not mat.use_nodes:
+    if not mat or not getattr(mat, "node_tree", None):
         return config
         
     nodes = mat.node_tree.nodes
@@ -73,7 +73,7 @@ def get_texture_configuration(obj):
 
 def get_images_from_material(mat):
     """Scans the material node tree and returns a set of valid Image objects."""
-    if not mat or not mat.use_nodes:
+    if not mat or not getattr(mat, "node_tree", None):
         return set()
         
     nodes = mat.node_tree.nodes

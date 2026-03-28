@@ -74,7 +74,9 @@ class ROBLOX_OT_add_texture_node(bpy.types.Operator):
             return {'CANCELLED'}
         
         mat = obj.active_material
-        mat.use_nodes = True
+        if hasattr(mat, "use_nodes"):
+            try: mat.use_nodes = True
+            except: pass
         
         # Ensure group exists
         group = ensure_rojo_texture_group()
@@ -93,7 +95,7 @@ def sync_material_to_nodes(mat):
     Updates the Blender Shader nodes to provide visual feedback 
     for Roblox-specific settings (like Neon glow).
     """
-    if not mat or not mat.use_nodes:
+    if not mat or not getattr(mat, "node_tree", None):
         return
 
     nodes = mat.node_tree.nodes

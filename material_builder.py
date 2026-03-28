@@ -9,7 +9,9 @@ def create_roblox_shader_instance():
     # This automatically handles .001, .002, etc. if the name exists
     mat = bpy.data.materials.new(name=BASE_NAME)
     
-    mat.use_nodes = True
+    if hasattr(mat, "use_nodes"):
+        try: mat.use_nodes = True
+        except: pass
     
     # --- VERSION SAFE SETTINGS ---
     if hasattr(mat, 'blend_method'):

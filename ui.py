@@ -38,7 +38,7 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
             mat = obj.active_material
             is_valid_template = False
             
-            if mat and mat.use_nodes:
+            if mat and getattr(mat, "node_tree", None):
                 nt = mat.node_tree
                 if "isMeshPart?" in nt.nodes and "useTexture?" in nt.nodes:
                     is_valid_template = True

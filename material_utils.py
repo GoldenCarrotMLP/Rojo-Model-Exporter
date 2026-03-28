@@ -16,7 +16,7 @@ def get_material_data(obj):
     data["Material"] = getattr(mat.roblox_props, "material_type", "Plastic")
     data["CastShadow"] = True
     
-    if mat.use_nodes and mat.node_tree:
+    if getattr(mat, "node_tree", None):
         nodes = mat.node_tree.nodes
         
         # 1. Try to get color from the dedicated "baseColor" node (Uber-Shader)
@@ -53,7 +53,7 @@ def get_material_data(obj):
 
 def get_texture_data(mat):
     textures = []
-    if not mat or not mat.use_nodes:
+    if not mat or not getattr(mat, "node_tree", None):
         return textures
 
     face_map = ["Front", "Back", "Left", "Right", "Top", "Bottom"]

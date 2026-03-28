@@ -107,7 +107,7 @@ class ROBLOX_OT_upload_textures(bpy.types.Operator):
 
     def execute(self, context):
         obj = context.active_object
-        if not obj or not obj.active_material or not obj.active_material.use_nodes:
+        if not obj or not obj.active_material or not getattr(obj.active_material, "node_tree", None):
             self.report({'ERROR'}, "Active object must have a valid Roblox material.")
             return {'CANCELLED'}
 
