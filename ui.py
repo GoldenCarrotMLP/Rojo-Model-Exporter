@@ -64,13 +64,17 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
                 box.operator("roblox.fix_material", text="Apply Roblox Template", icon='ADD')
 
             layout.separator()
-
+            
             # --- OBJECT DATA ---
             box = layout.box()
             box.label(text="Object Data", icon='MESH_DATA')
             box.prop(obj.roblox_props, "rbx_type", text="Type")
+
+            if obj.roblox_props.rbx_type == 'Brush':
+                box.prop(obj.roblox_props, "roblox_asset_id", text="Asset ID")
+                box.label(text="Will export as a placeholder for Studio.", icon='PACKAGE')
             
-            if obj.roblox_props.rbx_type == 'Part':
+            elif obj.roblox_props.rbx_type == 'Part':
                 box.prop(obj.roblox_props, "rbx_shape", text="Shape")
                 
             elif obj.roblox_props.rbx_type == 'MeshPart':

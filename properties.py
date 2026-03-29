@@ -60,6 +60,7 @@ class RobloxObjectProperties(bpy.types.PropertyGroup):
             ('WedgePart', "Wedge", ""),
             ('CornerWedgePart', "Corner Wedge", ""),
             ('MeshPart', "MeshPart", ""),
+            ('Brush', "Brush (Toolbox Model)", ""), # <--- ADDED THIS
         ],
         default='Part',
         update=update_shader_drivers 
@@ -72,12 +73,18 @@ class RobloxObjectProperties(bpy.types.PropertyGroup):
         update=update_shader_drivers 
     )
     
+    roblox_asset_id: bpy.props.StringProperty(
+        name="Asset ID",
+        description="Roblox Toolbox Asset ID (e.g., 1234567)",
+        default=""
+    )
+
     rbx_shape: bpy.props.EnumProperty(
         name="Shape",
         items=[('Block', "Block", ""), ('Ball', "Ball", ""), ('Cylinder', "Cylinder", "")],
         default='Block'
     )
-
+    
     child_behavior: bpy.props.EnumProperty(
         name="Child Behavior",
         items=[('WELD', "Weld to Parent", ""), ('NONE', "Just Parent", ""), ('MODEL', "Group as Model", "")],

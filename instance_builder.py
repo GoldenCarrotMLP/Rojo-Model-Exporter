@@ -6,7 +6,7 @@ from .texture_utils import get_texture_configuration
 from .constants import METERS_TO_STUDS
 
 def build_rojo_node(obj, accumulated_matrix, depsgraph):
-    """Generates standard MeshParts and Primitive Parts."""
+    """Generates standard MeshParts, Primitive Parts, or Brush Placeholders."""
     props = getattr(obj, "roblox_props", None)
     mat_data = get_material_data(obj)
     size, cframe = get_roblox_transform(obj, accumulated_matrix, depsgraph)
@@ -15,8 +15,29 @@ def build_rojo_node(obj, accumulated_matrix, depsgraph):
     rbx_type = props.rbx_type if props else "Part"
     mesh_name = obj.data.name
     
-    # --- LOGIC A: MESHPART ---
-    if rbx_type == "MeshPart" and mesh_name.startswith("rblx_mesh_"):
+    # --- LOGIC A: BRUSH (TOOLBOX MODEL PLACEHOLDER) ---
+    if rbx_type == "Brush":
+        asset_id = props.roblox_asset_id if props else ""
+        node = {
+            "$className": "Part",
+            "$id": obj.name,
+            "$properties": {
+                "Size": size,
+                "CFrame": cframe,
+                "Transparency": 1.0,      # Invisible in Studio
+                "CanCollide": False,      # Don't block the camera/player
+                "Anchored": True
+                # NOTE: "Name" is intentionally omitted here to prevent Rojo warnings
+            },
+            "$attributes": {
+                "IsBlenderBrush": True,
+                "BrushAssetId": asset_id
+            }
+        }
+        return node
+
+    # --- LOGIC B: MESHPART ---
+    elif rbx_type == "MeshPart" and mesh_name.startswith("rblx_mesh_"):
         parts = mesh_name.split("_")
         mesh_id = parts[3].split(".")[0] if len(parts) >= 4 else parts[2].split(".")[0]
             
@@ -39,7 +60,7 @@ def build_rojo_node(obj, accumulated_matrix, depsgraph):
         if tex_config["meshpart_id"]:
             node["$properties"]["TextureID"] = tex_config["meshpart_id"]
             
-    # --- LOGIC B: PRIMITIVE PART ---
+    # --- LOGIC C: PRIMITIVE PART ---
     else:
         final_class = rbx_type if rbx_type != "MeshPart" else "Part"
         
@@ -91,8 +112,8 @@ def build_rojo_light(obj, accumulated_matrix, depsgraph):
             "Transparency": 1.0,
             "CanCollide": False,
             "Anchored": True,
-            "CastShadow": False,
-            "Name": obj.name
+            "CastShadow": False
+            # NOTE: "Name" is intentionally omitted here to prevent Rojo warnings
         }
     }
     
@@ -100,14 +121,14 @@ def build_rojo_light(obj, accumulated_matrix, depsgraph):
     col = light.color
     rbx_color = [round(col[0], 3), round(col[1], 3), round(col[2], 3)]
     
-    # Blender Watts are high (10W-1000W). Roblox Brightness max is 40. 
-    brightness = min(round(light.energy / 10.0, 2), 40.0)
+    # Brightness mapping: 600W -> 3 (Power / 200)
+    brightness = min(round(light.energy / 200.0, 2), 40.0)
     
-    # Calculate Range
+    # 1:1 Range Mapping
     if getattr(light, "use_custom_distance", False):
-        rbx_range = min(round(light.cutoff_distance * METERS_TO_STUDS, 2), 60.0)
+        rbx_range = min(round(light.cutoff_distance, 2), 60.0)
     else:
-        rbx_range = min(max(round(brightness * 2.5, 2), 8.0), 60.0)
+        rbx_range = min(max(round(light.energy / 20.0, 2), 5.0), 60.0)
         
     shadows = getattr(light, "use_shadow", True)
     
