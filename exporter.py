@@ -6,7 +6,8 @@ from bpy_extras.io_utils import ExportHelper
 from bpy.types import Operator
 from bpy.app.handlers import persistent
 
-from .node_builder import process_object_tree
+# --- WE IMPORT THE NEW RESET FUNCTION HERE ---
+from .node_builder import process_object_tree, reset_referents
 
 def process_collection(collection, parent_matrix, depsgraph):
     """Recursively walks through sub-collections to build nested Folders."""
@@ -34,6 +35,9 @@ def export_rojo_project(filepath, context):
     context.view_layer.update()
     depsgraph = context.evaluated_depsgraph_get()
     
+    # --- THIS IS THE FIX! We clear the memory ONCE right as export begins ---
+    reset_referents()
+    
     project_tree = { "$className": "Model" }
     identity = mathutils.Matrix.Identity(4)
 
@@ -42,7 +46,6 @@ def export_rojo_project(filepath, context):
         if col.name.lower().startswith(".hidden"):
             continue
         
-        # We now pass it to our new recursive function
         project_tree[col.name] = process_collection(col, identity, depsgraph)
         
     # 2. Process Loose Scene Objects

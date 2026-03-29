@@ -6,7 +6,7 @@ from .texture_utils import get_texture_configuration
 from .constants import METERS_TO_STUDS
 
 def build_rojo_node(obj, accumulated_matrix, depsgraph):
-    """Generates standard MeshParts, Primitive Parts, or Brush Placeholders."""
+    """Generates standard MeshParts, Primitive Parts, Brush Placeholders, or Seats."""
     props = getattr(obj, "roblox_props", None)
     mat_data = get_material_data(obj)
     size, cframe = get_roblox_transform(obj, accumulated_matrix, depsgraph)
@@ -24,10 +24,9 @@ def build_rojo_node(obj, accumulated_matrix, depsgraph):
             "$properties": {
                 "Size": size,
                 "CFrame": cframe,
-                "Transparency": 1.0,      # Invisible in Studio
-                "CanCollide": False,      # Don't block the camera/player
+                "Transparency": 1.0,      
+                "CanCollide": False,      
                 "Anchored": True
-                # NOTE: "Name" is intentionally omitted here to prevent Rojo warnings
             },
             "$attributes": {
                 "IsBlenderBrush": True,
@@ -36,7 +35,22 @@ def build_rojo_node(obj, accumulated_matrix, depsgraph):
         }
         return node
 
-    # --- LOGIC B: MESHPART ---
+    # --- LOGIC B: SEAT ---
+    elif rbx_type == "Seat":
+        node = {
+            "$className": "Seat",
+            "$id": obj.name,
+            "$properties": {
+                "Size": size,
+                "CFrame": cframe,
+                "Transparency": 1.0,     # Fully transparent by default
+                "CanCollide": False,     # Won't bump into players, but they can still touch it to sit
+                "Anchored": True
+            }
+        }
+        return node
+
+    # --- LOGIC C: MESHPART ---
     elif rbx_type == "MeshPart" and mesh_name.startswith("rblx_mesh_"):
         parts = mesh_name.split("_")
         mesh_id = parts[3].split(".")[0] if len(parts) >= 4 else parts[2].split(".")[0]
@@ -60,7 +74,7 @@ def build_rojo_node(obj, accumulated_matrix, depsgraph):
         if tex_config["meshpart_id"]:
             node["$properties"]["TextureID"] = tex_config["meshpart_id"]
             
-    # --- LOGIC C: PRIMITIVE PART ---
+    # --- LOGIC D: PRIMITIVE PART ---
     else:
         final_class = rbx_type if rbx_type != "MeshPart" else "Part"
         

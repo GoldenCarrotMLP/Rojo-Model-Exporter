@@ -74,6 +74,10 @@ class VIEW3D_PT_roblox_builder(bpy.types.Panel):
                 box.prop(obj.roblox_props, "roblox_asset_id", text="Asset ID")
                 box.label(text="Will export as a placeholder for Studio.", icon='PACKAGE')
             
+            elif obj.roblox_props.rbx_type == 'Seat':
+                box.label(text="Exports as an invisible, non-colliding Seat.", icon='INFO')
+
+
             elif obj.roblox_props.rbx_type == 'Part':
                 box.prop(obj.roblox_props, "rbx_shape", text="Shape")
                 

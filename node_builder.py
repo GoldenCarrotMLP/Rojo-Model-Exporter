@@ -6,6 +6,11 @@ _INSTANCE_CACHE = None
 _LAST_DEPSGRAPH = None
 _USED_REFERENTS = set()
 
+def reset_referents():
+    """Clears the referent cache. Should be called ONCE per export."""
+    global _USED_REFERENTS
+    _USED_REFERENTS.clear()
+
 def get_instance_map(depsgraph):
     global _INSTANCE_CACHE, _LAST_DEPSGRAPH
     if _LAST_DEPSGRAPH != depsgraph:
@@ -15,7 +20,7 @@ def get_instance_map(depsgraph):
             if inst.is_instance and inst.parent and hasattr(inst.parent, 'original'):
                 parent_name = inst.parent.original.name
                 if parent_name not in _INSTANCE_CACHE:
-                    _INSTANCE_CACHE[parent_name] = []
+                    _INSTANCE_CACHE[parent_name] =[]
                 base_obj = inst.object.original if hasattr(inst.object, 'original') else inst.object
                 if base_obj and base_obj.type in {'MESH', 'LIGHT'}:
                     _INSTANCE_CACHE[parent_name].append({
@@ -39,11 +44,7 @@ def get_unique_id(base_name):
     _USED_REFERENTS.add(final_id)
     return final_id
 
-def process_object_tree(obj, parent_matrix, depsgraph, is_root=True):
-    global _USED_REFERENTS
-    if is_root:
-        _USED_REFERENTS.clear() # Reset tracking for new export
-
+def process_object_tree(obj, parent_matrix, depsgraph):
     current_matrix = parent_matrix @ obj.matrix_local
     nodes = {}
     
@@ -57,7 +58,6 @@ def process_object_tree(obj, parent_matrix, depsgraph, is_root=True):
             inst_matrix = inst_data['matrix']
             
             # Create a globally unique ID for this instance
-            # Scope it to the parent name to prevent cross-object collisions
             inst_id = get_unique_id(f"{obj.name}_{base_obj.name}_{idx}")
             
             if base_obj.type == 'MESH':
@@ -94,7 +94,7 @@ def process_object_tree(obj, parent_matrix, depsgraph, is_root=True):
         container.update(generated_folder)
 
         for child in obj.children:
-            child_results = process_object_tree(child, current_matrix, depsgraph, False)
+            child_results = process_object_tree(child, current_matrix, depsgraph)
             for name, child_node in child_results.items():
                 container[name] = child_node
                 if behavior == 'WELD' and child.type == 'MESH':
@@ -116,7 +116,7 @@ def process_object_tree(obj, parent_matrix, depsgraph, is_root=True):
         container.update(generated_folder)
         
         for child in obj.children:
-            child_results = process_object_tree(child, current_matrix, depsgraph, False)
+            child_results = process_object_tree(child, current_matrix, depsgraph)
             for name, child_node in child_results.items():
                 container[name] = child_node
 
@@ -130,7 +130,7 @@ def process_object_tree(obj, parent_matrix, depsgraph, is_root=True):
         all_objs = list(target_col.all_objects)
         for item in all_objs:
             if item.parent is None or item.parent not in all_objs: 
-                sub_results = process_object_tree(item, current_matrix, depsgraph, False)
+                sub_results = process_object_tree(item, current_matrix, depsgraph)
                 nodes[obj.name].update(sub_results)
 
     # --- 4. PROCESS EMPTIES / CURVES / OTHERS ---
@@ -140,7 +140,7 @@ def process_object_tree(obj, parent_matrix, depsgraph, is_root=True):
         nodes[obj.name].update(generated_folder)
         
         for child in obj.children:
-            child_results = process_object_tree(child, current_matrix, depsgraph, False)
+            child_results = process_object_tree(child, current_matrix, depsgraph)
             nodes[obj.name].update(child_results)
 
     return nodes

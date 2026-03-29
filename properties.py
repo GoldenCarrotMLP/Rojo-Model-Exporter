@@ -61,6 +61,7 @@ class RobloxObjectProperties(bpy.types.PropertyGroup):
             ('CornerWedgePart', "Corner Wedge", ""),
             ('MeshPart', "MeshPart", ""),
             ('Brush', "Brush (Toolbox Model)", ""), # <--- ADDED THIS
+            ('Seat', "Seat", ""),
         ],
         default='Part',
         update=update_shader_drivers 
@@ -84,7 +85,7 @@ class RobloxObjectProperties(bpy.types.PropertyGroup):
         items=[('Block', "Block", ""), ('Ball', "Ball", ""), ('Cylinder', "Cylinder", "")],
         default='Block'
     )
-    
+
     child_behavior: bpy.props.EnumProperty(
         name="Child Behavior",
         items=[('WELD', "Weld to Parent", ""), ('NONE', "Just Parent", ""), ('MODEL', "Group as Model", "")],
